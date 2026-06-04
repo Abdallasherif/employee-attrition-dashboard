@@ -1,7 +1,5 @@
 # 📊 Employee Attrition Analytics Dashboard
 
-> **By Abdalla Omar** | Kayfa AI & Data Analytics Internship Program — Week 1
-
 A full end-to-end data analytics project exploring why employees leave — and what HR leaders can do about it. Built on 74,498 synthetic employee records across five industries.
 
 ---
@@ -14,7 +12,7 @@ This dashboard transforms raw HR data into actionable insights. Instead of gut f
 
 ## 🚀 Live Dashboard
 
-👉 **[Click here to open the dashboard](YOUR_STREAMLIT_LINK_HERE)**
+👉 **[Click here to open the dashboard](https://employee-attrition-dashboard-ao.streamlit.app/)**
 
 ---
 
