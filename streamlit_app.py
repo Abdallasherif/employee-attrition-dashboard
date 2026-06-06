@@ -180,96 +180,70 @@ class AttritionAnalyzer:
         fig.update_xaxes(title_text="")
         return self.style_figure(fig, title="Attrition by Job Role")
 
-    def chart_work_life_balance(self, df: pd.DataFrame) -> go.Figure:
-        order = ["Poor", "Fair", "Good", "Excellent"]
-        series = (
-            df.groupby("work_life_balance_label", observed=False)["attrition"]
-            .mean()
-            .reindex(order)
-            .mul(100)
-            .reset_index(name="attrition_rate")
+    def chart_pay_fairness(self, df: pd.DataFrame) -> go.Figure:
+        level_order = ["Entry", "Mid", "Senior"]
+        band_order = ["Lowest", "Lower", "Middle", "Upper", "Highest"]
+        color_map = {
+            "Entry": KayfaBrand.PRIMARY,
+            "Mid": KayfaBrand.ACCENT,
+            "Senior": KayfaBrand.TEAL,
+        }
+
+        fig = make_subplots(
+            rows=1,
+            cols=3,
+            subplot_titles=tuple(level_order),
+            horizontal_spacing=0.10,
         )
-        fig = go.Figure(
-            go.Bar(
-                x=series["work_life_balance_label"],
-                y=series["attrition_rate"],
-                marker_color=[KayfaBrand.ACCENT, KayfaBrand.AMBER, KayfaBrand.PRIMARY_LIGHT, KayfaBrand.TEAL],
-                text=series["attrition_rate"].map(lambda x: f"{x:.1f}%"),
-                textposition="outside",
+
+        for col_index, level in enumerate(level_order, start=1):
+            sub = df[df["job_level_label"] == level].copy()
+            sub["pay_band"] = pd.qcut(
+                sub["monthly_income"],
+                q=5,
+                labels=band_order,
+                duplicates="drop",
             )
-        )
-        fig.update_layout(showlegend=False)
-        fig.update_yaxes(title_text="Attrition Rate (%)")
-        fig.update_xaxes(title_text="")
-        return self.style_figure(fig, title="Attrition by Work-Life Balance")
-
-    def chart_job_satisfaction(self, df: pd.DataFrame) -> go.Figure:
-        order = ["Low", "Medium", "High", "Very High"]
-        series = (
-            df.groupby("job_satisfaction_label", observed=False)["attrition"]
-            .mean()
-            .reindex(order)
-            .mul(100)
-            .reset_index(name="attrition_rate")
-        )
-        fig = go.Figure(
-            go.Bar(
-                x=series["job_satisfaction_label"],
-                y=series["attrition_rate"],
-                marker_color=[KayfaBrand.ACCENT, KayfaBrand.AMBER, KayfaBrand.PRIMARY_LIGHT, KayfaBrand.TEAL],
-                text=series["attrition_rate"].map(lambda x: f"{x:.1f}%"),
-                textposition="outside",
+            series = (
+                sub.groupby("pay_band", observed=False)["attrition"]
+                .mean()
+                .reindex(band_order)
+                .mul(100)
+                .reset_index(name="attrition_rate")
             )
-        )
-        fig.update_layout(showlegend=False)
-        fig.update_yaxes(title_text="Attrition Rate (%)")
-        fig.update_xaxes(title_text="")
-        return self.style_figure(fig, title="Attrition by Job Satisfaction")
+            fig.add_trace(
+                go.Scatter(
+                    x=series["pay_band"],
+                    y=series["attrition_rate"],
+                    mode="lines+markers+text",
+                    line=dict(color=color_map[level], width=3),
+                    marker=dict(size=10),
+                    text=series["attrition_rate"].map(lambda x: f"{x:.1f}%"),
+                    textposition="top center",
+                    name=level,
+                ),
+                row=1,
+                col=col_index,
+            )
+            fig.update_xaxes(title_text="Pay band", row=1, col=col_index)
+            fig.update_yaxes(title_text="Attrition Rate (%)" if col_index == 1 else "", row=1, col=col_index)
 
-    def chart_promotions(self, df: pd.DataFrame) -> go.Figure:
-        series = (
-            df.groupby("number_of_promotions", observed=False)["attrition"]
+        fig.update_layout(showlegend=False)
+        return self.style_figure(fig, height=470, title="Attrition by Pay Band")
+
+    def chart_retention_timeline(self, df: pd.DataFrame) -> go.Figure:
+        yearly = (
+            df.groupby("years_at_company", observed=False)["attrition"]
             .mean()
             .mul(100)
             .reset_index(name="attrition_rate")
+            .sort_values("years_at_company")
         )
-        fig = px.line(
-            series,
-            x="number_of_promotions",
-            y="attrition_rate",
-            markers=True,
-        )
-        fig.update_traces(line=dict(color=KayfaBrand.PRIMARY, width=3), marker=dict(size=10))
-        fig.update_layout(showlegend=False)
-        fig.update_yaxes(title_text="Attrition Rate (%)")
-        fig.update_xaxes(title_text="Number of Promotions")
-        return self.style_figure(fig, title="Attrition vs Promotions")
+        yearly["rolling"] = yearly["attrition_rate"].rolling(window=3, center=True, min_periods=1).mean()
+        yearly_focus = yearly[yearly["years_at_company"] <= 20].copy()
 
-    def chart_income_box(self, df: pd.DataFrame) -> go.Figure:
-        fig = px.box(
-            df,
-            x="attrition_label",
-            y="monthly_income",
-            color="attrition_label",
-            color_discrete_map={"Stayed": KayfaBrand.PRIMARY, "Left": KayfaBrand.ACCENT},
-        )
-        fig.update_layout(showlegend=False)
-        fig.update_xaxes(title_text="")
-        fig.update_yaxes(title_text="Monthly Income")
-        return self.style_figure(fig, title="Income Distribution: Stayed vs Left")
-
-    def chart_age_tenure(self, df: pd.DataFrame) -> go.Figure:
-        age_order = ["<30 (Young)", "30-44 (Mid-Career)", "45+ (Senior)"]
         tenure_order = ["0-2 years (New)", "2-5 years (Established)", "5-10 years (Loyal)", "10+ years (Veteran)"]
-
-        age_attrition = (
-            df.groupby("age_group", observed=False)["attrition"]
-            .mean()
-            .reindex(age_order)
-            .mul(100)
-            .reset_index(name="attrition_rate")
-        )
-        tenure_attrition = (
+        tenure_group = (
             df.groupby("tenure_group", observed=False)["attrition"]
             .mean()
             .reindex(tenure_order)
@@ -280,39 +254,326 @@ class AttritionAnalyzer:
         fig = make_subplots(
             rows=1,
             cols=2,
-            subplot_titles=("Attrition by Age Group", "Attrition by Tenure Group"),
+            subplot_titles=("Attrition by Year at Company", "Attrition by Tenure Group"),
             horizontal_spacing=0.12,
         )
         fig.add_trace(
-            go.Bar(
-                x=age_attrition["age_group"],
-                y=age_attrition["attrition_rate"],
-                marker_color=KayfaBrand.PRIMARY,
-                text=age_attrition["attrition_rate"].map(lambda x: f"{x:.1f}%"),
-                textposition="outside",
-                name="Age Group",
+            go.Scatter(
+                x=yearly_focus["years_at_company"],
+                y=yearly_focus["attrition_rate"],
+                mode="lines+markers",
+                line=dict(color=KayfaBrand.PRIMARY, width=3),
+                marker=dict(size=7),
+                name="Annual attrition",
+            ),
+            row=1,
+            col=1,
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=yearly_focus["years_at_company"],
+                y=yearly_focus["rolling"],
+                mode="lines",
+                line=dict(color=KayfaBrand.ACCENT, width=3, dash="dash"),
+                name="3-year rolling average",
             ),
             row=1,
             col=1,
         )
         fig.add_trace(
             go.Bar(
-                x=tenure_attrition["tenure_group"],
-                y=tenure_attrition["attrition_rate"],
-                marker_color=KayfaBrand.PRIMARY_DARK,
-                text=tenure_attrition["attrition_rate"].map(lambda x: f"{x:.1f}%"),
+                x=tenure_group["tenure_group"],
+                y=tenure_group["attrition_rate"],
+                marker_color=[KayfaBrand.PRIMARY, KayfaBrand.ACCENT, KayfaBrand.PRIMARY_LIGHT, KayfaBrand.TEAL],
+                text=tenure_group["attrition_rate"].map(lambda x: f"{x:.1f}%"),
                 textposition="outside",
-                name="Tenure Group",
+                name="Tenure group",
             ),
             row=1,
             col=2,
         )
         fig.update_layout(showlegend=False)
+        fig.update_xaxes(title_text="Years at company", row=1, col=1)
         fig.update_yaxes(title_text="Attrition Rate (%)", row=1, col=1)
+        fig.update_xaxes(title_text="", row=1, col=2)
         fig.update_yaxes(title_text="Attrition Rate (%)", row=1, col=2)
+        return self.style_figure(fig, height=470, title="Attrition Across Tenure")
+
+    def chart_engagement_heatmap(self, df: pd.DataFrame) -> go.Figure:
+        wlb_order = ["Poor", "Fair", "Good", "Excellent"]
+        sat_order = ["Low", "Medium", "High", "Very High"]
+        pivot = (
+            df.pivot_table(
+                index="work_life_balance_label",
+                columns="job_satisfaction_label",
+                values="attrition",
+                aggfunc="mean",
+            )
+            .reindex(index=wlb_order, columns=sat_order)
+            .mul(100)
+        )
+        fig = go.Figure(
+            go.Heatmap(
+                z=pivot.values,
+                x=pivot.columns,
+                y=pivot.index,
+                colorscale=[
+                    [0.0, "#ECEEFB"],
+                    [0.5, "#8A91F2"],
+                    [1.0, "#FF6B4A"],
+                ],
+                text=pivot.round(1).astype(str).values,
+                texttemplate="%{text}%",
+                textfont={"size": 12, "color": "#14132B"},
+                hovertemplate="WLB=%{y}<br>Satisfaction=%{x}<br>Attrition=%{z:.1f}%<extra></extra>",
+                colorbar=dict(title="Attrition %"),
+            )
+        )
+        fig.update_layout(
+            height=470,
+            title=dict(text="Work-Life Balance vs Satisfaction", x=0.02, xanchor="left", font=dict(size=22, family=KayfaBrand.DISPLAY_STACK)),
+            font=dict(family=KayfaBrand.FONT_STACK, color=KayfaBrand.TEXT),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            margin=dict(l=18, r=18, t=70, b=20),
+        )
+        return fig
+
+    def chart_life_stage(self, df: pd.DataFrame) -> go.Figure:
+        age_order = ["<30 (Young)", "30-44 (Mid-Career)", "45+ (Senior)"]
+        marital_order = ["Single", "Married", "Divorced"]
+        age_marital = (
+            df.pivot_table(
+                index="age_group",
+                columns="marital_status",
+                values="attrition",
+                aggfunc="mean",
+            )
+            .reindex(index=age_order, columns=marital_order)
+            .mul(100)
+        )
+        dependents = (
+            df.groupby("number_of_dependents", observed=False)["attrition"]
+            .mean()
+            .mul(100)
+            .reset_index(name="attrition_rate")
+        )
+        fig = make_subplots(
+            rows=1,
+            cols=2,
+            subplot_titles=("Age Group x Marital Status", "Attrition by Number of Dependents"),
+            horizontal_spacing=0.16,
+        )
+        fig.add_trace(
+            go.Heatmap(
+                z=age_marital.values,
+                x=age_marital.columns,
+                y=age_marital.index,
+                colorscale=[
+                    [0.0, "#ECEEFB"],
+                    [0.5, "#8A91F2"],
+                    [1.0, "#FF6B4A"],
+                ],
+                text=age_marital.round(1).astype(str).values,
+                texttemplate="%{text}%",
+                hovertemplate="Age=%{y}<br>Marital=%{x}<br>Attrition=%{z:.1f}%<extra></extra>",
+                colorbar=dict(title="Attrition %"),
+            ),
+            row=1,
+            col=1,
+        )
+        fig.add_trace(
+            go.Bar(
+                x=dependents["number_of_dependents"],
+                y=dependents["attrition_rate"],
+                marker_color=KayfaBrand.PRIMARY,
+                text=dependents["attrition_rate"].map(lambda x: f"{x:.1f}%"),
+                textposition="outside",
+            ),
+            row=1,
+            col=2,
+        )
+        fig.update_layout(showlegend=False)
+        fig.update_xaxes(title_text="", row=1, col=1)
+        fig.update_yaxes(title_text="", row=1, col=1)
+        fig.update_xaxes(title_text="Number of dependents", row=1, col=2)
+        fig.update_yaxes(title_text="Attrition Rate (%)", row=1, col=2)
+        return self.style_figure(fig, height=560, title="Life Stage Patterns")
+
+    def chart_career_stagnation(self, df: pd.DataFrame) -> go.Figure:
+        promo_order = [0, 1, 2, 3, 4]
+        promo_rates = (
+            df.groupby("number_of_promotions", observed=False)["attrition"]
+            .mean()
+            .reindex(promo_order)
+            .mul(100)
+            .reset_index(name="attrition_rate")
+        )
+        level_rates = (
+            df.groupby("job_level", observed=False)["attrition"]
+            .mean()
+            .sort_index()
+            .mul(100)
+            .reset_index(name="attrition_rate")
+        )
+        level_rates["job_level"] = level_rates["job_level"].map(KayfaBrand.JOB_LEVEL_MAP)
+        leadership = (
+            df.groupby("leadership_opportunities", observed=False)["attrition"]
+            .mean()
+            .sort_index()
+            .mul(100)
+            .reset_index(name="attrition_rate")
+        )
+        leadership["leadership_opportunities"] = leadership["leadership_opportunities"].map(KayfaBrand.BINARY_MAP)
+        innovation = (
+            df.groupby("innovation_opportunities", observed=False)["attrition"]
+            .mean()
+            .sort_index()
+            .mul(100)
+            .reset_index(name="attrition_rate")
+        )
+        innovation["innovation_opportunities"] = innovation["innovation_opportunities"].map(KayfaBrand.BINARY_MAP)
+
+        fig = make_subplots(
+            rows=2,
+            cols=2,
+            subplot_titles=("Promotions", "Job Level", "Leadership Opportunities", "Innovation Opportunities"),
+            horizontal_spacing=0.12,
+            vertical_spacing=0.18,
+        )
+        fig.add_trace(
+            go.Bar(
+                x=promo_rates["number_of_promotions"],
+                y=promo_rates["attrition_rate"],
+                marker_color=KayfaBrand.PRIMARY,
+                text=promo_rates["attrition_rate"].map(lambda x: f"{x:.1f}%"),
+                textposition="outside",
+            ),
+            row=1,
+            col=1,
+        )
+        fig.add_trace(
+            go.Bar(
+                x=level_rates["job_level"],
+                y=level_rates["attrition_rate"],
+                marker_color=[KayfaBrand.PRIMARY, KayfaBrand.ACCENT, KayfaBrand.TEAL],
+                text=level_rates["attrition_rate"].map(lambda x: f"{x:.1f}%"),
+                textposition="outside",
+            ),
+            row=1,
+            col=2,
+        )
+        fig.add_trace(
+            go.Bar(
+                x=leadership["leadership_opportunities"],
+                y=leadership["attrition_rate"],
+                marker_color=[KayfaBrand.ACCENT, KayfaBrand.PRIMARY],
+                text=leadership["attrition_rate"].map(lambda x: f"{x:.1f}%"),
+                textposition="outside",
+            ),
+            row=2,
+            col=1,
+        )
+        fig.add_trace(
+            go.Bar(
+                x=innovation["innovation_opportunities"],
+                y=innovation["attrition_rate"],
+                marker_color=[KayfaBrand.ACCENT, KayfaBrand.PRIMARY],
+                text=innovation["attrition_rate"].map(lambda x: f"{x:.1f}%"),
+                textposition="outside",
+            ),
+            row=2,
+            col=2,
+        )
+        fig.update_layout(showlegend=False)
         fig.update_xaxes(title_text="", row=1, col=1)
         fig.update_xaxes(title_text="", row=1, col=2)
-        return self.style_figure(fig, height=480, title="Career Stage Retention Snapshot")
+        fig.update_xaxes(title_text="", row=2, col=1)
+        fig.update_xaxes(title_text="", row=2, col=2)
+        fig.update_yaxes(title_text="Attrition Rate (%)", row=1, col=1)
+        fig.update_yaxes(title_text="Attrition Rate (%)", row=1, col=2)
+        fig.update_yaxes(title_text="Attrition Rate (%)", row=2, col=1)
+        fig.update_yaxes(title_text="Attrition Rate (%)", row=2, col=2)
+        return self.style_figure(fig, height=650, title="Growth and Mobility Signals")
+
+    def chart_profile_vs_company(self, baseline_rate: float, profile_rate: float) -> go.Figure:
+        fig = px.bar(
+            x=["Company average", "Highest-risk profile"],
+            y=[baseline_rate, profile_rate],
+            text=[f"{baseline_rate:.1f}%", f"{profile_rate:.1f}%"],
+            color=["Company average", "Highest-risk profile"],
+            color_discrete_map={"Company average": KayfaBrand.PRIMARY_LIGHT, "Highest-risk profile": KayfaBrand.ACCENT},
+        )
+        fig.update_traces(textposition="outside", cliponaxis=False)
+        fig.update_layout(showlegend=False)
+        fig.update_xaxes(title_text="")
+        fig.update_yaxes(title_text="Attrition Rate (%)")
+        return self.style_figure(fig, title="High-Risk Profile vs Company Average")
+
+    def chart_action_levers(self, df: pd.DataFrame) -> go.Figure:
+        baseline = df["attrition"].mean() * 100
+        metrics = [
+            ("Work-life balance: Poor", df[df["work_life_balance"] == 0]["attrition"].mean() * 100 - baseline),
+            ("Remote work: No", df[df["remote_work"] == 0]["attrition"].mean() * 100 - baseline),
+            ("Overtime: Yes", df[df["overtime"] == 1]["attrition"].mean() * 100 - baseline),
+        ]
+        metrics = sorted(metrics, key=lambda item: item[1], reverse=True)
+        fig = px.bar(
+            x=[m[0] for m in metrics],
+            y=[m[1] for m in metrics],
+            text=[f"+{m[1]:.1f} pp" for m in metrics],
+            color=[m[1] for m in metrics],
+            color_continuous_scale=[KayfaBrand.PRIMARY_SOFT, KayfaBrand.PRIMARY, KayfaBrand.ACCENT],
+        )
+        fig.update_traces(textposition="outside", cliponaxis=False)
+        fig.update_layout(coloraxis_showscale=False, showlegend=False)
+        fig.update_xaxes(title_text="")
+        fig.update_yaxes(title_text="Lift above company average (pp)")
+        return self.style_figure(fig, title="Potential Impact of Next-Step Levers")
+
+    def chart_attrition_by_overtime(self, df: pd.DataFrame) -> go.Figure:
+        series = (
+            df.groupby("overtime_label", observed=False)["attrition"]
+            .mean()
+            .reindex(["No", "Yes"])
+            .mul(100)
+            .reset_index(name="attrition_rate")
+        )
+        fig = px.bar(
+            series,
+            x="overtime_label",
+            y="attrition_rate",
+            text=series["attrition_rate"].map(lambda x: f"{x:.1f}%"),
+            color="overtime_label",
+            color_discrete_map={"No": KayfaBrand.PRIMARY, "Yes": KayfaBrand.ACCENT},
+        )
+        fig.update_traces(textposition="outside", cliponaxis=False)
+        fig.update_layout(showlegend=False)
+        fig.update_xaxes(title_text="Overtime")
+        fig.update_yaxes(title_text="Attrition Rate (%)")
+        return self.style_figure(fig, title="Attrition by Overtime")
+
+    def chart_attrition_by_remote_work(self, df: pd.DataFrame) -> go.Figure:
+        series = (
+            df.groupby("remote_work_label", observed=False)["attrition"]
+            .mean()
+            .reindex(["No", "Yes"])
+            .mul(100)
+            .reset_index(name="attrition_rate")
+        )
+        fig = px.bar(
+            series,
+            x="remote_work_label",
+            y="attrition_rate",
+            text=series["attrition_rate"].map(lambda x: f"{x:.1f}%"),
+            color="remote_work_label",
+            color_discrete_map={"No": KayfaBrand.PRIMARY, "Yes": KayfaBrand.TEAL},
+        )
+        fig.update_traces(textposition="outside", cliponaxis=False)
+        fig.update_layout(showlegend=False)
+        fig.update_xaxes(title_text="Remote work")
+        fig.update_yaxes(title_text="Attrition Rate (%)")
+        return self.style_figure(fig, title="Attrition by Remote Work")
 
     def chart_remote_overtime(self, df: pd.DataFrame) -> go.Figure:
         overtime = (
@@ -653,6 +914,13 @@ class AttritionDashboard:
                     font-size: 0.96rem;
                 }}
 
+                .question-title {{
+                    font-size: 1.2rem;
+                    font-weight: 700;
+                    color: var(--text);
+                    margin: 1.1rem 0 0.1rem;
+                }}
+
                 .insight-card {{
                     background: var(--card);
                     border: 1px solid var(--border);
@@ -823,8 +1091,33 @@ class AttritionDashboard:
 
                     .brand-bar {
                       display: flex;
-                      align-items: center;
+                      align-items: flex-start;
+                      justify-content: space-between;
+                      gap: 1rem;
                       margin-bottom: 40px;
+                    }
+
+                    .brand-credit {
+                      display: flex;
+                      flex-direction: column;
+                      align-items: flex-start;
+                      gap: 0.55rem;
+                    }
+
+                    .task-pill {
+                      display: inline-flex;
+                      align-items: center;
+                      justify-content: center;
+                      padding: 0.5rem 0.85rem;
+                      border-radius: 999px;
+                      background: {KayfaBrand.ACCENT};
+                      border: 1px solid {KayfaBrand.ACCENT};
+                      color: #FFFFFF;
+                      font-size: 0.76rem;
+                      font-weight: 800;
+                      letter-spacing: 0.14em;
+                      text-transform: uppercase;
+                      white-space: nowrap;
                     }
 
                     .brand-tagline {
@@ -832,13 +1125,12 @@ class AttritionDashboard:
                       font-weight: 500;
                       letter-spacing: 0.16em;
                       text-transform: uppercase;
-                      color: rgba(255,255,255,0.42);
+                      color: {KayfaBrand.ACCENT};
                       text-align: left;
                       line-height: 1.6;
                     }
 
                     .brand-logo {
-                      margin-left: auto;
                       width: 210px;
                       height: auto;
                       display: block;
@@ -970,7 +1262,7 @@ class AttritionDashboard:
                         min-height: auto;
                       }
 
-                      .brand-bar {
+                    .brand-bar {
                         margin-bottom: 28px;
                       }
 
@@ -1001,9 +1293,9 @@ class AttritionDashboard:
                     <div class="blob blob-2"></div>
                     <div class="iso-grid"></div>
 
-                    <div class="header-inner">
+                      <div class="header-inner">
                       <div class="brand-bar">
-                        <div class="brand-tagline">BY Abdalla Omar</div>
+                        <div class="brand-tagline">BY Abdalla Omar<br>Week 1 Task</div>
                         <img class="brand-logo" src="__LOGO_URI__" alt="Kayfa logo" />
                       </div>
 
@@ -1106,6 +1398,32 @@ class AttritionDashboard:
         st.markdown(f"<div class='section-subtitle'>{subtitle}</div>", unsafe_allow_html=True)
 
     @staticmethod
+    def render_question_intro(title: str, subtitle: str) -> None:
+        st.markdown(
+            f"<div class='question-title'>{title}</div><div class='section-subtitle'>{subtitle}</div>",
+            unsafe_allow_html=True,
+        )
+
+    @staticmethod
+    def render_answer_panel(title: str, answer: str, why_it_matters: str, so_what: str, note: str | None = None) -> None:
+        note_html = ""
+        if note:
+            note_html = f"<p style='margin-top:0.85rem;color:{KayfaBrand.MUTED};font-size:0.92rem;'><strong>Note:</strong> {note}</p>"
+        st.markdown(
+            f"""
+            <div class="insight-card" style="border-left:5px solid {KayfaBrand.PRIMARY};">
+                <div class="insight-kicker">Answer</div>
+                <h4>{title}</h4>
+                <p><strong>What we found:</strong> {answer}</p>
+                <p style="margin-top:0.7rem;"><strong>Why it matters:</strong> {why_it_matters}</p>
+                <p style="margin-top:0.85rem;color:{KayfaBrand.MUTED};font-size:0.92rem;"><strong>So what?</strong> {so_what}</p>
+                {note_html}
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    @staticmethod
     def render_insight_cards(insights: list[tuple[str, str, str]]) -> None:
         cols = st.columns(2)
         for index, (title, body, solution) in enumerate(insights):
@@ -1130,130 +1448,397 @@ class AttritionDashboard:
 
         filters = self.build_filter_panel(self.analyzer.display_df)
         filtered_df = self.analyzer.filtered(filters)
+        full_df = self.analyzer.display_df
 
-        if filtered_df.empty:
-            st.warning("No rows match the current filter selection. Please widen at least one filter.")
-            return
-
-        tabs = st.tabs(["Overview", "Drivers", "Segments", "Insights", "Data"])
+        tabs = st.tabs(["Overview", "Comparison & Segmentations", "Synthesis & Decision-Making", "Insights", "Data"])
 
         with tabs[0]:
             self.render_section_intro(
                 "Overview",
-                "A quick read on attrition, role distribution, and the main career-stage patterns.",
+                "Key retention headlines from the full cleaned dataset.",
             )
-            left, right = st.columns([1, 1])
+            self.render_question_intro(
+                "The headline",
+                "What share of employees left overall, and which job role is losing the most people?",
+            )
+            q1_overall = full_df["attrition"].mean() * 100
+            job_role_rates = full_df.groupby("job_role", observed=False)["attrition"].mean().sort_values(ascending=False)
+            top_role_name = job_role_rates.index[0]
+            top_role_rate = job_role_rates.iloc[0] * 100
+            top_role_departures = int(full_df.groupby("job_role", observed=False)["attrition"].sum().sort_values(ascending=False).iloc[0])
+            top_role_size = int(full_df["job_role"].value_counts().loc[top_role_name])
+
+            left, right = st.columns([1.15, 0.85])
             with left:
-                st.plotly_chart(self.analyzer.chart_attrition_pie(filtered_df), use_container_width=True, config={"displayModeBar": False})
+                st.plotly_chart(self.analyzer.chart_attrition_pie(full_df), use_container_width=True, config={"displayModeBar": False})
+                st.plotly_chart(self.analyzer.chart_job_role_attrition(full_df), use_container_width=True, config={"displayModeBar": False})
             with right:
-                st.plotly_chart(self.analyzer.chart_job_role_attrition(filtered_df), use_container_width=True, config={"displayModeBar": False})
-            st.plotly_chart(self.analyzer.chart_age_tenure(filtered_df), use_container_width=True, config={"displayModeBar": False})
+                self.render_answer_panel(
+                    "The headline",
+                    (
+                        f"{q1_overall:.1f}% of employees left overall. "
+                        f"{top_role_name} has the highest attrition rate at {top_role_rate:.1f}% and contributes {top_role_departures:,} departures out of {top_role_size:,} employees in that role."
+                    ),
+                    (
+                        f"The company has a broad retention problem, but {top_role_name} is the first place leadership should look because it combines the highest rate with meaningful scale."
+                    ),
+                    (
+                        f"Start a focused retention review in {top_role_name}: workload, manager quality, career progression, and compensation should be checked before spreading effort elsewhere."
+                    ),
+                    note="If leadership cares about absolute headcount lost, this role is also one of the largest contributors to total departures."
+                )
+                st.markdown(
+                    f"""
+                    <div class="soft-panel" style="margin-top:1rem;">
+                        <div class="meta-label" style="color:{KayfaBrand.MUTED};">Business takeaway</div>
+                        <div style="font-size:1.05rem;line-height:1.7;color:{KayfaBrand.TEXT};font-weight:600;">
+                            Education is the highest-risk role by attrition rate. Technology has the largest number of departures because it is the biggest group, so leadership should watch both the rate and the volume.
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+            st.markdown("<div style='height:0.35rem;'></div>", unsafe_allow_html=True)
+            self.render_question_intro(
+                "Overtime",
+                "Are employees who work overtime more likely to leave, and by how much versus those who do not?",
+            )
+            overtime_rates = full_df.groupby("overtime", observed=False)["attrition"].mean().reindex([0, 1]).mul(100)
+            overtime_no = overtime_rates.loc[0]
+            overtime_yes = overtime_rates.loc[1]
+            overtime_lift = overtime_yes - overtime_no
+            overtime_ratio = overtime_yes / overtime_no if overtime_no else 0
+
+            left, right = st.columns([1.15, 0.85])
+            with left:
+                st.plotly_chart(self.analyzer.chart_attrition_by_overtime(full_df), use_container_width=True, config={"displayModeBar": False})
+            with right:
+                self.render_answer_panel(
+                    "Overtime",
+                    (
+                        f"Employees who work overtime are more likely to leave: {overtime_yes:.1f}% attrition versus {overtime_no:.1f}% for those who do not, a gap of {overtime_lift:.1f} percentage points or about {overtime_ratio:.2f}x higher risk."
+                    ),
+                    "That size of gap strongly suggests workload pressure or burnout rather than random noise.",
+                    "HR should treat overtime as a workload issue: rebalance staffing, reduce chronic overtime, and have managers intervene early when overtime becomes the norm.",
+                    note="This is an association, not proof of causality, but the difference is large enough to justify action."
+                )
+
+            st.markdown("<div style='height:0.35rem;'></div>", unsafe_allow_html=True)
+            self.render_question_intro(
+                "Remote work",
+                "Does offering remote work appear to keep people, and how large is the effect?",
+            )
+            remote_rates = full_df.groupby("remote_work", observed=False)["attrition"].mean().reindex([0, 1]).mul(100)
+            remote_no = remote_rates.loc[0]
+            remote_yes = remote_rates.loc[1]
+            remote_gap = remote_no - remote_yes
+            remote_share = full_df["remote_work"].mean() * 100
+
+            left, right = st.columns([1.15, 0.85])
+            with left:
+                st.plotly_chart(self.analyzer.chart_attrition_by_remote_work(full_df), use_container_width=True, config={"displayModeBar": False})
+            with right:
+                self.render_answer_panel(
+                    "Remote work",
+                    (
+                        f"Remote work appears to help retention: remote employees show {remote_yes:.1f}% attrition versus {remote_no:.1f}% for non-remote staff, a gap of {remote_gap:.1f} percentage points."
+                    ),
+                    (
+                        f"The effect looks large, but only about {remote_share:.1f}% of staff work remotely, so this is based on a relatively small subgroup."
+                    ),
+                    (
+                        "Leadership can say flexible work is associated with lower attrition, but should avoid overclaiming causality. The safe move is to expand flexibility where roles allow it and validate the pattern with more rollout data."
+                    ),
+                    note="The small remote-work share means this is a promising signal, not a final policy verdict."
+                )
 
         with tabs[1]:
             self.render_section_intro(
-                "Drivers",
-                "The key retention levers: work-life balance, satisfaction, promotions, and income.",
+                "Comparison & Segmentations",
+                "Compare pay, tenure, engagement, and life stage to show where attrition concentrates.",
             )
-            left, right = st.columns(2)
+
+            self.render_question_intro(
+                "Pay fairness",
+                "Within the same job level, do lower-paid employees leave more often, and where does the pay effect flatten?",
+            )
+            left, right = st.columns([1.15, 0.85])
             with left:
-                st.plotly_chart(self.analyzer.chart_work_life_balance(filtered_df), use_container_width=True, config={"displayModeBar": False})
-                st.plotly_chart(self.analyzer.chart_promotions(filtered_df), use_container_width=True, config={"displayModeBar": False})
+                st.plotly_chart(self.analyzer.chart_pay_fairness(full_df), use_container_width=True, config={"displayModeBar": False})
             with right:
-                st.plotly_chart(self.analyzer.chart_job_satisfaction(filtered_df), use_container_width=True, config={"displayModeBar": False})
-                st.plotly_chart(self.analyzer.chart_income_box(filtered_df), use_container_width=True, config={"displayModeBar": False})
+                self.render_answer_panel(
+                    "Pay fairness",
+                    (
+                        "Yes. Within every job level, the lowest-paid employees have the highest attrition. "
+                        "The retention benefit is strongest at the bottom of the band and then flattens once pay reaches the middle of the range."
+                    ),
+                    (
+                        "That means pay is still part of the problem, but only targeted pay fixes are likely to move the needle. "
+                        "Broad raises would be expensive without much extra retention benefit."
+                    ),
+                    (
+                        "Protect the floor pay bands first. Fix the lowest-paid employees inside each job level, keep clear minimum-to-median spreads, and use targeted band corrections instead of across-the-board raises."
+                    ),
+                    note="The data shows diminishing returns once employees move out of the lowest band."
+                )
+
+            st.markdown("---")
+
+            self.render_question_intro(
+                "The retention timeline",
+                "At what stage of tenure is attrition highest, and where should retention effort be aimed?",
+            )
+            left, right = st.columns([1.15, 0.85])
+            with left:
+                st.plotly_chart(self.analyzer.chart_retention_timeline(full_df), use_container_width=True, config={"displayModeBar": False})
+            with right:
+                peak_year = int(
+                    full_df.groupby("years_at_company", observed=False)["attrition"].mean().mul(100).idxmax()
+                )
+                peak_year_rate = float(
+                    full_df.groupby("years_at_company", observed=False)["attrition"].mean().mul(100).max()
+                )
+                tenure_group_rates = (
+                    full_df.groupby("tenure_group", observed=False)["attrition"].mean().sort_values(ascending=False).mul(100)
+                )
+                worst_tenure_group = tenure_group_rates.index[0]
+                worst_tenure_rate = tenure_group_rates.iloc[0]
+                self.render_answer_panel(
+                    "The retention timeline",
+                    (
+                        f"Attrition peaks around year {peak_year} at {peak_year_rate:.1f}%, and the highest tenure-group risk is {worst_tenure_group} at {worst_tenure_rate:.1f}%."
+                    ),
+                    (
+                        "The real risk window is early-to-mid tenure, not long-tenure veterans. The first 10 years carry the heaviest churn, with a clear drop after employees become veterans."
+                    ),
+                    (
+                        "Put the most retention effort into onboarding and mid-career growth, especially the 2-10 year window. Long-tenure employees still matter, but they are not the main leak."
+                    ),
+                    note="The peak at year 9 is the sharpest single point, but the broader message is that the first decade is the danger zone."
+                )
+
+            st.markdown("---")
+
+            self.render_question_intro(
+                "Engagement warning signs",
+                "Which mix of Job Satisfaction and Work-Life Balance is the strongest early-warning sign that someone will leave?",
+            )
+            left, right = st.columns([1.15, 0.85])
+            with left:
+                st.plotly_chart(self.analyzer.chart_engagement_heatmap(full_df), use_container_width=True, config={"displayModeBar": False})
+            with right:
+                engagement = (
+                    full_df.groupby(["work_life_balance_label", "job_satisfaction_label"], observed=False)["attrition"]
+                    .mean()
+                    .mul(100)
+                    .reset_index(name="attrition_rate")
+                    .sort_values("attrition_rate", ascending=False)
+                )
+                top_engagement = engagement.iloc[0]
+                top_engagement_count = int(
+                    full_df[
+                        (full_df["work_life_balance_label"] == top_engagement["work_life_balance_label"])
+                        & (full_df["job_satisfaction_label"] == top_engagement["job_satisfaction_label"])
+                    ].shape[0]
+                )
+                self.render_answer_panel(
+                    "Engagement warning signs",
+                    (
+                        f"The strongest warning sign is {top_engagement['work_life_balance_label']} work-life balance paired with {top_engagement['job_satisfaction_label']} job satisfaction, where attrition reaches {top_engagement['attrition_rate']:.1f}% across {top_engagement_count:,} employees."
+                    ),
+                    (
+                        "The combo tells managers to watch for both workload strain and disengagement. Poor work-life balance is already dangerous, and low satisfaction makes the risk even worse."
+                    ),
+                    (
+                        "Managers should intervene when workload gets poor or satisfaction starts slipping: rebalance work, reduce overload, and have a direct check-in before the employee becomes a leaver."
+                    ),
+                    note="The danger signal is the combination, not either metric alone."
+                )
+
+            st.markdown("---")
+
+            self.render_question_intro(
+                "Life stage",
+                "Do age, marital status, and number of dependents change who leaves?",
+            )
+            st.plotly_chart(self.analyzer.chart_life_stage(full_df), use_container_width=True, config={"displayModeBar": False})
+            life_stage = (
+                full_df.groupby(["age_group", "marital_status", "number_of_dependents"], observed=False)["attrition"]
+                .mean()
+                .mul(100)
+                .reset_index(name="attrition_rate")
+                .sort_values("attrition_rate", ascending=False)
+            )
+            top_life = life_stage.iloc[0]
+            top_life_count = int(
+                full_df[
+                    (full_df["age_group"] == top_life["age_group"])
+                    & (full_df["marital_status"] == top_life["marital_status"])
+                    & (full_df["number_of_dependents"] == top_life["number_of_dependents"])
+                ].shape[0]
+            )
+            self.render_answer_panel(
+                "Life stage",
+                (
+                    f"The highest-risk life stage is {top_life['age_group']}, {top_life['marital_status'].lower()}, with {int(top_life['number_of_dependents'])} dependents. That exact profile leaves at {top_life['attrition_rate']:.1f}% and represents {top_life_count:,} employees."
+                ),
+                (
+                    "Age and relationship status clearly matter, but marital status is the strongest signal. Single employees are the main risk group, especially in the younger age bands."
+                ),
+                (
+                    "Retain them with career acceleration, manager support, and flexibility for early-life transitions. Generic perks will not be enough if they feel stuck or unsupported."
+                ),
+                note="The dependents pattern is weaker than the age-and-marital signal, so don't over-focus on family status alone."
+            )
 
         with tabs[2]:
             self.render_section_intro(
-                "Segments",
-                "Work-pattern signals and a closer look at which employee groups deserve priority attention.",
+                "Synthesis & Decision-Making",
+                "Pull the evidence together and translate it into the most useful next actions.",
             )
-            st.plotly_chart(self.analyzer.chart_remote_overtime(filtered_df), use_container_width=True, config={"displayModeBar": False})
-            top_role = filtered_df.groupby("job_role", observed=False)["attrition"].mean().sort_values(ascending=False).index[0]
-            top_age = filtered_df.groupby("age_group", observed=False)["attrition"].mean().sort_values(ascending=False).index[0]
-            top_tenure = filtered_df.groupby("tenure_group", observed=False)["attrition"].mean().sort_values(ascending=False).index[0]
-            c1, c2, c3 = st.columns(3)
-            card_style = """
-                background: linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(247,247,255,0.94) 100%);
-                border: 1px solid rgba(20,19,43,0.10);
-                border-radius: 20px;
-                padding: 18px 18px 16px;
-                box-shadow: 0 14px 30px rgba(20,19,43,0.07);
-                min-height: 112px;
-                position: relative;
-                overflow: hidden;
-            """
-            label_style = """
-                font-size: 11px;
-                font-weight: 700;
-                letter-spacing: 0.08em;
-                text-transform: uppercase;
-                color: #6B6A82;
-                margin-bottom: 10px;
-            """
-            value_style = f"""
-                font-size: 1.55rem;
-                line-height: 1.05;
-                font-weight: 700;
-                color: {KayfaBrand.TEXT};
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
-            """
-            top_cards = [
-                ("Highest attrition role", top_role),
-                ("Highest age-group risk", top_age),
-                ("Highest tenure risk", top_tenure),
-            ]
-            for col, (label, value) in zip([c1, c2, c3], top_cards):
-                with col:
-                    st.markdown(
-                        f"""
-                        <div style="{card_style}">
-                            <div style="position:absolute; inset:0 auto auto 0; width:100%; height:5px; background: linear-gradient(90deg, {KayfaBrand.PRIMARY} 0%, {KayfaBrand.PRIMARY_LIGHT} 100%);"></div>
-                            <div style="{label_style}">{label}</div>
-                            <div style="{value_style}">{value}</div>
-                        </div>
-                        """,
-                        unsafe_allow_html=True,
-                    )
+
+            # Career stagnation
+            self.render_question_intro(
+                "Career stagnation",
+                "Does limited growth line up with leaving?",
+            )
+            left, right = st.columns([1.15, 0.85])
+            with left:
+                st.plotly_chart(self.analyzer.chart_career_stagnation(full_df), use_container_width=True, config={"displayModeBar": False})
+            with right:
+                promotions_0_2 = full_df[full_df["number_of_promotions"].isin([0, 1, 2])]["attrition"].mean() * 100
+                promotions_3_plus = full_df[full_df["number_of_promotions"].isin([3, 4])]["attrition"].mean() * 100
+                entry_rate = full_df[full_df["job_level"] == 0]["attrition"].mean() * 100
+                senior_rate = full_df[full_df["job_level"] == 2]["attrition"].mean() * 100
+                self.render_answer_panel(
+                    "Career stagnation",
+                    (
+                        f"The pattern is consistent: attrition is {promotions_0_2:.1f}% for employees with 0-2 promotions, then drops to {promotions_3_plus:.1f}% once employees reach 3+ promotions. "
+                        f"Entry-level roles also sit at {entry_rate:.1f}% attrition, far above senior roles at {senior_rate:.1f}%."
+                    ),
+                    (
+                        "Employees who do not see movement are much more likely to leave. The signal is strongest in promotions and job level, with smaller but still positive pressure from missing leadership and innovation opportunities."
+                    ),
+                    (
+                        "Build visible internal mobility: clearer promotion criteria, role rotations, stretch assignments, and faster movement out of entry-level tracks."
+                    ),
+                    note="The biggest gap is between employees who have moved a few times and those who are still stuck near the bottom of the ladder."
+                )
+
+            st.markdown("---")
+
+            # Highest-risk profile
+            self.render_question_intro(
+                "Highest-risk profile",
+                "What combination of factors creates the single riskiest employee profile?",
+            )
+            left, right = st.columns([1.15, 0.85])
+            profile_mask = (
+                (full_df["age_group"] == "<30 (Young)")
+                & (full_df["marital_status"] == "Single")
+                & (full_df["job_level"] == 0)
+                & (full_df["overtime"] == 1)
+            )
+            profile_df = full_df[profile_mask]
+            profile_rate = profile_df["attrition"].mean() * 100
+            profile_count = len(profile_df)
+            baseline_rate = full_df["attrition"].mean() * 100
+            with left:
+                st.plotly_chart(
+                    self.analyzer.chart_profile_vs_company(baseline_rate, profile_rate),
+                    use_container_width=True,
+                    config={"displayModeBar": False},
+                )
+            with right:
+                self.render_answer_panel(
+                    "Highest-risk profile",
+                    (
+                        f"The strongest high-risk profile I found is a young, single, entry-level employee who works overtime. "
+                        f"That group leaves at {profile_rate:.1f}% versus {baseline_rate:.1f}% company-wide, and it covers {profile_count:,} employees."
+                    ),
+                    (
+                        "This is not a fringe cluster. It is large enough to matter, and the combination of youth, single status, entry level, and overtime points to early-career pressure."
+                    ),
+                    (
+                        "Treat this as a priority cohort for onboarding, manager coaching, workload control, and early career-path support."
+                    ),
+                    note="This profile is based on four visible factors, which makes it strong enough to act on but still simple enough to communicate."
+                )
+
+            st.markdown("---")
+
+            # What moves the needle
+            self.render_question_intro(
+                "What moves the needle",
+                "If HR could improve only one thing next quarter, where would the data point?",
+            )
+            left, right = st.columns([1.15, 0.85])
+            with left:
+                st.plotly_chart(self.analyzer.chart_action_levers(full_df), use_container_width=True, config={"displayModeBar": False})
+            with right:
+                poor_wlb_rate = full_df[full_df["work_life_balance"] == 0]["attrition"].mean() * 100
+                good_wlb_rate = full_df[full_df["work_life_balance"] == 2]["attrition"].mean() * 100
+                poor_wlb_count = int((full_df["work_life_balance"] == 0).sum())
+                rough_prevented = round((poor_wlb_rate - good_wlb_rate) / 100 * poor_wlb_count)
+                self.render_answer_panel(
+                    "What moves the needle",
+                    (
+                        "Among the controllable drivers, poor work-life balance has the largest attrition lift above the company average, ahead of no remote work and overtime. "
+                        f"Poor work-life balance sits at {poor_wlb_rate:.1f}% attrition versus {full_df['attrition'].mean() * 100:.1f}% company-wide."
+                    ),
+                    (
+                        "This is the clearest next-quarter lever because it is both material and operationally fixable. Work-life balance also connects directly to the overtime findings from the first tab."
+                    ),
+                    (
+                        f"Focus the next quarter on workload redesign, manager accountability, and protected time off. If the poor work-life balance group moved up to the good-work-life-balance rate, that would prevent roughly {rough_prevented:,} departures across this population."
+                    ),
+                    note="Other risk signals such as entry-level status are strong, but they are slower to change than day-to-day workload."
+                )
 
         with tabs[3]:
-            self.render_section_intro(
-                "Insights",
-                "A concise business Insights with solutions.",
-            )
-            self.render_insight_cards(self.analyzer.top_insights(filtered_df))
+            if filtered_df.empty:
+                st.warning("No rows match the current filter selection. Please widen at least one filter.")
+            else:
+                self.render_section_intro(
+                    "Insights",
+                    "Business takeaways supported by the strongest patterns in the data.",
+                )
+                self.render_insight_cards(self.analyzer.top_insights(filtered_df))
 
         with tabs[4]:
-            self.render_section_intro(
-                "Data",
-                "Preview the filtered rows and download the cleaned dataset for further analysis.",
-            )
-            preview_cols = [
-                "age",
-                "gender",
-                "age_group",
-                "tenure_group",
-                "job_role",
-                "job_level_label",
-                "monthly_income",
-                "work_life_balance_label",
-                "job_satisfaction_label",
-                "overtime_label",
-                "remote_work_label",
-                "attrition_label",
-            ]
-            available_cols = [col for col in preview_cols if col in filtered_df.columns]
-            st.dataframe(filtered_df[available_cols].head(100), use_container_width=True, hide_index=True)
+            if filtered_df.empty:
+                st.warning("No rows match the current filter selection. Please widen at least one filter.")
+            else:
+                self.render_section_intro(
+                    "Data",
+                    "Preview the filtered rows and download the cleaned dataset for further analysis.",
+                )
+                preview_cols = [
+                    "age",
+                    "gender",
+                    "age_group",
+                    "tenure_group",
+                    "job_role",
+                    "job_level_label",
+                    "monthly_income",
+                    "work_life_balance_label",
+                    "job_satisfaction_label",
+                    "overtime_label",
+                    "remote_work_label",
+                    "attrition_label",
+                ]
+                available_cols = [col for col in preview_cols if col in filtered_df.columns]
+                st.dataframe(filtered_df[available_cols].head(100), use_container_width=True, hide_index=True)
 
-            csv_data = filtered_df.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                label="Download filtered data",
-                data=csv_data,
-                file_name="kayfa_attrition_filtered.csv",
-                mime="text/csv",
-                use_container_width=True,
-            )
+                csv_data = filtered_df.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    label="Download filtered data",
+                    data=csv_data,
+                    file_name="kayfa_attrition_filtered.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                )
 
 
 def main() -> None:
