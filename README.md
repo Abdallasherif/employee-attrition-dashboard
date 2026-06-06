@@ -40,13 +40,13 @@ This dashboard transforms raw HR data into actionable insights. Instead of gut f
 
 ## 🛠️ Tech Stack
 
-| Tool | Purpose |
-|------|---------|
-| 🐍 Python | Core language |
-| 🐼 Pandas | Data loading, cleaning & manipulation |
-| 📊 Plotly | Interactive visualizations |
-| 🎯 Streamlit | Dashboard framework & deployment |
-| ☁️ Streamlit Cloud | Hosting |
+| Tool                 | Purpose                               |
+| -------------------- | ------------------------------------- |
+| 🐍 Python            | Core language                         |
+| 🐼 Pandas            | Data loading, cleaning & manipulation |
+| 📊 Plotly            | Interactive visualizations            |
+| 🎯 Streamlit         | Dashboard framework & deployment      |
+| ☁️ Streamlit Cloud | Hosting                               |
 
 ---
 
@@ -85,14 +85,14 @@ streamlit run app.py
 Load & Combine → Clean & Preprocess → EDA → Visualize → Dashboard → Deploy
 ```
 
-| Step | What Was Done |
-|------|--------------|
-| 1️⃣ Load & Combine | Merged train and test CSVs into a single 74,498-row dataset |
+| Step                     | What Was Done                                                                  |
+| ------------------------ | ------------------------------------------------------------------------------ |
+| 1️⃣ Load & Combine     | Merged train and test CSVs into a single 74,498-row dataset                    |
 | 2️⃣ Clean & Preprocess | Handled nulls, encoded ordinal features, normalized column names to snake_case |
-| 3️⃣ EDA | Explored attrition patterns across all 22 features |
-| 4️⃣ Visualize | Built interactive Plotly charts with clear business takeaways |
-| 5️⃣ Dashboard | Shipped a filterable Streamlit app an HR leader can actually use |
-| 6️⃣ Deploy | Live on Streamlit Community Cloud |
+| 3️⃣ EDA                | Explored attrition patterns across all 22 features                             |
+| 4️⃣ Visualize          | Built interactive Plotly charts with clear business takeaways                  |
+| 5️⃣ Dashboard          | Shipped a filterable Streamlit app an HR leader can actually use               |
+| 6️⃣ Deploy             | Live on Streamlit Community Cloud                                              |
 
 ---
 
@@ -102,4 +102,4 @@ This project was built as the **Week 1 Task** of the **Kayfa AI & Data Analytics
 
 ---
 
-*Built with 🔥 by Abdalla Omar
+*Built with 🔥 by Abdalla Omar*
