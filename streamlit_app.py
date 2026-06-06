@@ -198,19 +198,37 @@ class AttritionAnalyzer:
 
         for col_index, level in enumerate(level_order, start=1):
             sub = df[df["job_level_label"] == level].copy()
-            sub["pay_band"] = pd.qcut(
-                sub["monthly_income"],
-                q=5,
-                labels=band_order,
-                duplicates="drop",
-            )
-            series = (
-                sub.groupby("pay_band", observed=False)["attrition"]
-                .mean()
-                .reindex(band_order)
-                .mul(100)
-                .reset_index(name="attrition_rate")
-            )
+            if sub.empty:
+                series = pd.DataFrame({"pay_band": band_order, "attrition_rate": [0.0] * len(band_order)})
+            elif sub["monthly_income"].nunique() < 2:
+                series = pd.DataFrame(
+                    {
+                        "pay_band": ["All"],
+                        "attrition_rate": [sub["attrition"].mean() * 100],
+                    }
+                )
+            else:
+                _, bins = pd.qcut(
+                    sub["monthly_income"],
+                    q=min(5, sub["monthly_income"].nunique()),
+                    retbins=True,
+                    duplicates="drop",
+                )
+                band_count = max(1, len(bins) - 1)
+                labels = band_order[:band_count]
+                sub["pay_band"] = pd.qcut(
+                    sub["monthly_income"],
+                    q=band_count,
+                    labels=labels,
+                    duplicates="drop",
+                )
+                series = (
+                    sub.groupby("pay_band", observed=False)["attrition"]
+                    .mean()
+                    .reindex(labels)
+                    .mul(100)
+                    .reset_index(name="attrition_rate")
+                )
             fig.add_trace(
                 go.Scatter(
                     x=series["pay_band"],
@@ -1485,7 +1503,10 @@ class AttritionDashboard:
 
         filters = self.build_filter_panel(self.analyzer.display_df)
         filtered_df = self.analyzer.filtered(filters)
-        full_df = self.analyzer.display_df
+        if filtered_df.empty:
+            st.warning("No rows match the current filter selection. Please widen at least one filter.")
+            return
+        full_df = filtered_df
 
         tabs = st.tabs(["Overview", "Comparison & Segmentations", "Synthesis & Decision-Making", "Insights", "Data"])
 
