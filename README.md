@@ -102,4 +102,4 @@ This project was built as the **Week 1 Task** of the **Kayfa AI & Data Analytics
 
 ---
 
-*Built with 🔥 by Abdalla Omar*<img width="1212" height="725" alt="image" src="https://github.com/user-attachments/assets/82a6be9f-3e13-4d61-9ecf-a308d0452db6" />
+*Built with 🔥 by Abdalla Omar
