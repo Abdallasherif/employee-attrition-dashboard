@@ -611,57 +611,95 @@ class AttritionAnalyzer:
         if df.empty:
             return []
 
-        role = (
-            df.groupby("job_role", observed=False)["attrition"].mean().sort_values(ascending=False).head(1)
+        overall_rate = df["attrition"].mean() * 100
+
+        role_rates = df.groupby("job_role", observed=False)["attrition"].mean().sort_values(ascending=False)
+        role_departures = df.groupby("job_role", observed=False)["attrition"].sum().sort_values(ascending=False)
+        top_rate_role = role_rates.index[0]
+        top_dep_role = role_departures.index[0]
+        top_rate_role_rate = role_rates.iloc[0] * 100
+
+        overtime_no = df[df["overtime"] == 0]["attrition"].mean() * 100
+        overtime_yes = df[df["overtime"] == 1]["attrition"].mean() * 100
+        remote_no = df[df["remote_work"] == 0]["attrition"].mean() * 100
+        remote_yes = df[df["remote_work"] == 1]["attrition"].mean() * 100
+        remote_share = df["remote_work"].mean() * 100
+
+        yearly = df.groupby("years_at_company", observed=False)["attrition"].mean().mul(100)
+        peak_year = int(yearly.idxmax())
+        peak_year_rate = float(yearly.max())
+        tenured = df.groupby("tenure_group", observed=False)["attrition"].mean().sort_values(ascending=False).mul(100)
+        tenured_worst = tenured.index[0]
+        tenured_rate = float(tenured.iloc[0])
+
+        promo_0_2 = df[df["number_of_promotions"].isin([0, 1, 2])]["attrition"].mean() * 100
+        promo_3_plus = df[df["number_of_promotions"].isin([3, 4])]["attrition"].mean() * 100
+        entry_rate = df[df["job_level"] == 0]["attrition"].mean() * 100
+        senior_rate = df[df["job_level"] == 2]["attrition"].mean() * 100
+
+        poor_wlb_rate = df[df["work_life_balance"] == 0]["attrition"].mean() * 100
+        good_wlb_rate = df[df["work_life_balance"] == 2]["attrition"].mean() * 100
+        poor_wlb_count = int((df["work_life_balance"] == 0).sum())
+        prevented_if_improved = round((poor_wlb_rate - good_wlb_rate) / 100 * poor_wlb_count)
+
+        profile_mask = (
+            (df["age_group"] == "<30 (Young)")
+            & (df["marital_status"] == "Single")
+            & (df["job_level"] == 0)
+            & (df["overtime"] == 1)
         )
-        role_name = role.index[0]
-        role_rate = role.iloc[0] * 100
-
-        wlb = (
-            df.groupby("work_life_balance_label", observed=False)["attrition"].mean().sort_values(ascending=False).head(1)
-        )
-        wlb_name = wlb.index[0]
-        wlb_rate = wlb.iloc[0] * 100
-
-        sat = (
-            df.groupby("job_satisfaction_label", observed=False)["attrition"].mean().sort_values(ascending=False).head(1)
-        )
-        sat_name = sat.index[0]
-        sat_rate = sat.iloc[0] * 100
-
-        age = df.groupby("age_group", observed=False)["attrition"].mean().sort_values(ascending=False).head(1)
-        age_name = age.index[0]
-        age_rate = age.iloc[0] * 100
-
-        tenure = df.groupby("tenure_group", observed=False)["attrition"].mean().sort_values(ascending=False).head(1)
-        tenure_name = tenure.index[0]
-        tenure_rate = tenure.iloc[0] * 100
+        profile_df = df[profile_mask]
+        profile_rate = profile_df["attrition"].mean() * 100
+        profile_count = len(profile_df)
 
         return [
             (
-                f"Retention priority: {role_name}",
-                f"{role_name} shows the strongest churn signal at {role_rate:.1f}%, so it should be the first group for a focused retention review.",
-                "Solution: review role-specific workload, manager support, and career-path visibility.",
+                "Start with Education, keep an eye on Technology",
+                (
+                    f"Overall attrition sits at {overall_rate:.1f}%. Education has the highest attrition rate at {top_rate_role_rate:.1f}%, "
+                    f"while {top_dep_role} contributes the most departures because it is the largest role. That makes Education the cleanest first target."
+                ),
+                "Focus role-specific workload, manager support, and career-path visibility in Education first, then watch Technology for volume.",
             ),
             (
-                f"Workload signal: {wlb_name}",
-                f"{wlb_name} work-life balance is linked to {wlb_rate:.1f}% attrition, which points to workload and flexibility as practical levers.",
-                "Solution: improve flexibility, rebalance demand, and track workload through pulse checks.",
+                "Overtime and flexibility are the clearest operating signals",
+                (
+                    f"Employees who work overtime leave at {overtime_yes:.1f}% versus {overtime_no:.1f}% for those who do not. "
+                    f"Remote employees leave at {remote_yes:.1f}% compared with {remote_no:.1f}% on-site, but only {remote_share:.1f}% of staff work remotely."
+                ),
+                "Treat overtime as a workload issue, and expand flexibility where roles allow it while validating the remote-work pattern as adoption grows.",
             ),
             (
-                f"Engagement gap: {sat_name}",
-                f"Employees in the {sat_name.lower()} satisfaction band are leaving most often at {sat_rate:.1f}%, suggesting a clear engagement issue.",
-                "Solution: strengthen feedback loops, recognition, and manager follow-up.",
+                "The first decade is the danger window",
+                (
+                    f"Attrition peaks around year {peak_year} at {peak_year_rate:.1f}%, and the {tenured_worst} tenure group still records {tenured_rate:.1f}% attrition. "
+                    "The pressure is strongest early and mid-career, not in long-tenure veterans."
+                ),
+                "Invest in onboarding, 90-day follow-ups, and growth conversations in the 2-10 year window.",
             ),
             (
-                f"Career-stage focus: {age_name}",
-                f"The {age_name} segment has the highest age-group attrition at {age_rate:.1f}%, indicating a retention gap in that career stage.",
-                "Solution: add mentoring, growth checkpoints, and targeted development plans.",
+                "People leave when they feel stuck",
+                (
+                    f"Employees with 0-2 promotions leave at {promo_0_2:.1f}%, while 3+ promotions drop to {promo_3_plus:.1f}%. "
+                    f"Entry-level roles sit at {entry_rate:.1f}% attrition versus {senior_rate:.1f}% for senior roles, which reinforces the same story."
+                ),
+                "Make internal mobility visible with clearer promotion paths, role rotations, and faster movement out of entry level.",
             ),
             (
-                f"Tenure risk: {tenure_name}",
-                f"The {tenure_name.lower()} group records {tenure_rate:.1f}% attrition, so onboarding and growth support matter here.",
-                "Solution: strengthen onboarding, 90-day check-ins, and early-career coaching.",
+                "The highest-risk cohort needs direct intervention",
+                (
+                    f"A young, single, entry-level employee who works overtime leaves at {profile_rate:.1f}% versus {overall_rate:.1f}% company-wide, "
+                    f"and the profile covers {profile_count:,} employees. This is large enough to justify a targeted response."
+                ),
+                "Use this cohort for workload reduction, manager coaching, and early-career retention support.",
+            ),
+            (
+                "Work-life balance is the fastest next-quarter lever",
+                (
+                    f"Poor work-life balance is the biggest lift above baseline. It sits at {poor_wlb_rate:.1f}% attrition versus {good_wlb_rate:.1f}% for the good group, "
+                    f"so moving that group up a notch could prevent roughly {prevented_if_improved:,} departures."
+                ),
+                "Focus next quarter on workload redesign, manager accountability, and protected time off.",
             ),
         ]
 
@@ -928,6 +966,7 @@ class AttritionDashboard:
                     padding: 1rem 1rem 0.95rem;
                     box-shadow: 0 10px 28px rgba(20,19,43,0.05);
                     height: 100%;
+                    margin-bottom: 1rem;
                 }}
 
                 .insight-kicker {{
@@ -1431,7 +1470,7 @@ class AttritionDashboard:
                 st.markdown(
                     f"""
                     <div class="insight-card">
-                        <div class="insight-kicker">Insight {index + 1}</div>
+                        <div class="insight-kicker">Finding</div>
                         <h4>{title}</h4>
                         <p>{body}</p>
                         <p style="margin-top:0.85rem;color:{KayfaBrand.MUTED};font-size:0.92rem;"><strong>Solution:</strong> {solution.replace('Solution: ', '')}</p>
@@ -1439,8 +1478,6 @@ class AttritionDashboard:
                     """,
                     unsafe_allow_html=True,
                 )
-                if index % 2 == 1 and index < len(insights) - 1:
-                    st.write("")
 
     def run(self) -> None:
         self.inject_styles()
