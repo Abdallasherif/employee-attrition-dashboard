@@ -1013,6 +1013,31 @@ class AttritionDashboard:
                     line-height: 1.65;
                 }}
 
+                .page-footer {{
+                    margin-top: 1.25rem;
+                    background: linear-gradient(135deg, #11112B 0%, #0B0B1F 100%);
+                    color: rgba(255,255,255,0.44);
+                    padding: 1rem 1.2rem;
+                    border-radius: 18px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    gap: 1rem;
+                    flex-wrap: wrap;
+                    font-size: 0.78rem;
+                    border: 1px solid rgba(255,255,255,0.08);
+                }}
+
+                .page-footer span {{
+                    line-height: 1.55;
+                }}
+
+                .footer-logo {{
+                    height: 24px;
+                    width: auto;
+                    opacity: 0.9;
+                }}
+
                 .soft-panel {{
                     background: rgba(255,255,255,0.72);
                     border: 1px solid var(--border);
@@ -1143,12 +1168,13 @@ class AttritionDashboard:
                     .header-inner {
                       position: relative;
                       z-index: 2;
-                      max-width: 1100px;
+                      width: 100%;
+                      max-width: none;
                     }
 
                     .brand-bar {
                       display: flex;
-                      align-items: flex-start;
+                      align-items: center;
                       justify-content: space-between;
                       gap: 1rem;
                       margin-bottom: 40px;
@@ -1188,7 +1214,7 @@ class AttritionDashboard:
                     }
 
                     .brand-logo {
-                      width: 210px;
+                      width: clamp(220px, 18vw, 290px);
                       height: auto;
                       display: block;
                     }
@@ -1222,6 +1248,7 @@ class AttritionDashboard:
                       display: grid;
                       grid-template-columns: repeat(6, minmax(0, 1fr));
                       gap: 14px;
+                      width: 100%;
                       margin-top: 24px;
                       margin-bottom: 34px;
                     }
@@ -1324,7 +1351,7 @@ class AttritionDashboard:
                       }
 
                       .brand-logo {
-                        width: 150px;
+                        width: 190px;
                       }
 
                       .header-meta {
@@ -1416,6 +1443,19 @@ class AttritionDashboard:
         for col, (label, value) in zip(cols, metric_specs):
             with col:
                 st.metric(label, value)
+
+    @staticmethod
+    def render_footer() -> None:
+        logo_uri = AttritionDashboard._asset_to_data_uri(HEADER_LOGO_PATH)
+        st.markdown(
+            f"""
+            <div class="page-footer">
+                <span>Kayfa &middot; AI &amp; Data Analytics Internship Program</span>
+                <img class="footer-logo" src="{logo_uri}" alt="Kayfa logo" />
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     @staticmethod
     def build_filter_panel(df: pd.DataFrame) -> dict[str, list[str]]:
@@ -1863,6 +1903,8 @@ class AttritionDashboard:
                     "Business takeaways supported by the strongest patterns in the data.",
                 )
                 self.render_insight_cards(self.analyzer.top_insights(filtered_df))
+
+        self.render_footer()
 
 
 def main() -> None:
