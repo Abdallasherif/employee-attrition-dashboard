@@ -1508,7 +1508,7 @@ class AttritionDashboard:
             return
         full_df = filtered_df
 
-        tabs = st.tabs(["Overview", "Comparison & Segmentations", "Synthesis & Decision-Making", "Insights", "Data"])
+        tabs = st.tabs(["Overview", "Comparison & Segmentations", "Synthesis & Decision-Making", "Business Decisions"])
 
         with tabs[0]:
             self.render_section_intro(
@@ -1863,40 +1863,6 @@ class AttritionDashboard:
                     "Business takeaways supported by the strongest patterns in the data.",
                 )
                 self.render_insight_cards(self.analyzer.top_insights(filtered_df))
-
-        with tabs[4]:
-            if filtered_df.empty:
-                st.warning("No rows match the current filter selection. Please widen at least one filter.")
-            else:
-                self.render_section_intro(
-                    "Data",
-                    "Preview the filtered rows and download the cleaned dataset for further analysis.",
-                )
-                preview_cols = [
-                    "age",
-                    "gender",
-                    "age_group",
-                    "tenure_group",
-                    "job_role",
-                    "job_level_label",
-                    "monthly_income",
-                    "work_life_balance_label",
-                    "job_satisfaction_label",
-                    "overtime_label",
-                    "remote_work_label",
-                    "attrition_label",
-                ]
-                available_cols = [col for col in preview_cols if col in filtered_df.columns]
-                st.dataframe(filtered_df[available_cols].head(100), use_container_width=True, hide_index=True)
-
-                csv_data = filtered_df.to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    label="Download filtered data",
-                    data=csv_data,
-                    file_name="kayfa_attrition_filtered.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                )
 
 
 def main() -> None:
